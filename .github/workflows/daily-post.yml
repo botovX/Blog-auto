@@ -1,7 +1,7 @@
 name: Article quotidien
 on:
   schedule:
-    - cron: '0 8 * * *'   # chaque jour à 10h heure de Paris (8h UTC)
+    - cron: '0 8 * * *'   # chaque jour à 10h (heure Paris)
   workflow_dispatch:      # permet de lancer manuellement
 
 jobs:
@@ -20,5 +20,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BLOG_EMAIL: ${{ secrets.BLOG_EMAIL }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          # Pour Gmail :
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          # Pour SendGrid :
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python main.py
