@@ -1,0 +1,24 @@
+name: Article quotidien
+on:
+  schedule:
+    - cron: '0 8 * * *'   # chaque jour à 10h heure de Paris (8h UTC)
+  workflow_dispatch:      # permet de lancer manuellement
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Installer dépendances
+        run: pip install -r requirements.txt
+      - name: Lancer le script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BLOG_EMAIL: ${{ secrets.BLOG_EMAIL }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python main.py
