@@ -1,12 +1,15 @@
 import os
-import smtplib
-from email.mime.text import MIMEText
+import time
+import smtplib  # supprimez cette ligne si vous utilisez SendGrid
+import requests
 import google.generativeai as genai
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, To, Content
 
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 BLOG_EMAIL = os.environ["BLOG_EMAIL"]
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")  # optionnel, selon votre choix
 GMAIL_USER = os.environ["GMAIL_USER"]
-GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
 
 NICHE = "plantes d'intérieur faciles"
 PROMPT = f"""
@@ -21,26 +24,42 @@ Le contenu doit être en HTML simple (utilise <h2>, <p>, <ul>).
 def generer_article():
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel("gemini-2.0-flash")
-    response = model.generate_content(PROMPT)
-    texte = response.text.strip()
-    if texte.startswith("```json"):
-        texte = texte[7:]
-    if texte.endswith("```"):
-        texte = texte[:-3]
-    import json
-    data = json.loads(texte)
-    return data["titre"], data["contenu"]
+    # Jusqu'à 3 tentatives avec attente croissante
+    for i in range(3):
+        try:
+            response = model.generate_content(PROMPT)
+            texte = response.text.strip()
+            if texte.startswith("```json"):
+                texte = texte[7:]
+            if texte.endswith("```"):
+                texte = texte[:-3]
+            import json
+            data = json.loads(texte)
+            return data["titre"], data["contenu"]
+        except Exception as e:
+            print(f"Tentative {i+1} échouée : {e}")
+            if i < 2:  # ne pas attendre après le dernier essai
+                time.sleep(60)  # attendre 1 minute avant de réessayer
+    raise Exception("Échec de génération après 3 tentatives")
 
-def envoyer_article(titre, contenu):
-    msg = MIMEText(contenu, "html", "utf-8")
-    msg["Subject"] = titre
-    msg["From"] = GMAIL_USER
-    msg["To"] = BLOG_EMAIL
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, BLOG_EMAIL, msg.as_string())
-    print(f"Article publié : {titre}")
+def envoyer_article_sendgrid(titre, contenu_html):
+    message = Mail(
+        from_email=GMAIL_USER,
+        to_emails=BLOG_EMAIL,
+        subject=titre,
+        html_content=contenu_html)
+    try:
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+        print(f"Article publié : {titre} (status {response.status_code})")
+    except Exception as e:
+        print(f"Erreur SendGrid : {e}")
+        raise e
 
 if __name__ == "__main__":
-    titre, contenu = generer_article()
-    envoyer_article(titre, contenu)
+    try:
+        titre, contenu = generer_article()
+        envoyer_article_sendgrid(titre, contenu)
+    except Exception as e:
+        print(f"Échec final : {e}")
+        exit(1)  # pour que GitHub Actions détecte l'échec
